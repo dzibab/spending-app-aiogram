@@ -4,4 +4,6 @@ version = "2025.07.07"
 description = "A Telegram bot for managing personal finances using aiogram"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "aiogram>=3.21.0",
+]
