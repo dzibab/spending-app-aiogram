@@ -21,6 +21,7 @@ logging.basicConfig(level=logging.INFO)
 # Bot and Dispatcher
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+dp.startup.register(init_db)
 
 
 @dp.message(Command("start"))
@@ -53,5 +54,4 @@ async def cmd_setcurrency(message: Message) -> None:
 
 
 if __name__ == "__main__":
-    init_db()
     dp.run_polling(bot)
