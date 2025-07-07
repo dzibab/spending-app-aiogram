@@ -56,7 +56,9 @@ def add_expense(
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
     # Get user_id and currency from telegram_id
-    cursor.execute("SELECT id, currency FROM users WHERE telegram_id = ?", (telegram_id,))
+    cursor.execute(
+        "SELECT id, currency FROM users WHERE telegram_id = ?", (telegram_id,)
+    )
     row = cursor.fetchone()
     if row is None:
         conn.close()
