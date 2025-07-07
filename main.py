@@ -12,9 +12,9 @@ from aiogram.types import (
 )
 from dotenv import load_dotenv
 
-from db import init_db, add_user, set_currency, add_expense
-from constants import DEFAULT_CATEGORIES
-from fsm import AddExpenseStates
+from src.db import init_db, add_user, set_currency, add_expense
+from src.constants import DEFAULT_CATEGORIES
+from src.fsm import AddExpenseStates
 
 
 # ENV

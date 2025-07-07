@@ -1,6 +1,6 @@
 import sqlite3
 
-from constants import DB
+from .constants import DB
 
 
 class DBConnection:
