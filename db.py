@@ -39,5 +39,15 @@ def add_user(telegram_id: int) -> None:
     conn.close()
 
 
+def set_currency(telegram_id: int, currency: str) -> None:
+    conn = sqlite3.connect(DB)
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE users SET currency = ? WHERE telegram_id = ?", (currency, telegram_id)
+    )
+    conn.commit()
+    conn.close()
+
+
 if __name__ == "__main__":
     init_db()

@@ -6,7 +6,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from dotenv import load_dotenv
 
-from db import init_db, add_user
+from db import init_db, add_user, set_currency
 
 
 # ENV
@@ -32,6 +32,24 @@ async def cmd_start(message: Message) -> None:
         "Set your default currency with /setcurrency (e.g. /setcurrency USD).\n"
         "Add expenses with /add."
     )
+
+
+@dp.message(Command("setcurrency"))
+async def cmd_setcurrency(message: Message) -> None:
+    if not message.from_user or not message.text:
+        return
+    args = message.text.split()
+    if len(args) != 2:
+        await message.answer("Usage: /setcurrency USD")
+        return
+    currency = args[1].upper()
+    if not (len(currency) == 3 and currency.isalpha()):
+        await message.answer(
+            "Please provide a valid 3-letter currency code (e.g. USD, EUR)."
+        )
+        return
+    set_currency(message.from_user.id, currency)
+    await message.answer(f"✅ Default currency set to {currency}.")
 
 
 if __name__ == "__main__":
