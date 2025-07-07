@@ -1,8 +1,10 @@
 import sqlite3
 
+from constants import DB
+
 
 def init_db():
-    conn = sqlite3.connect("spending.db")
+    conn = sqlite3.connect(DB)
     cursor = conn.cursor()
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
@@ -24,6 +26,16 @@ def init_db():
     );
     """)
     conn.commit()
+    conn.close()
+
+
+def add_user(telegram_id: int) -> None:
+    conn = sqlite3.connect(DB)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM users WHERE telegram_id = ?", (telegram_id,))
+    if cursor.fetchone() is None:
+        cursor.execute("INSERT INTO users (telegram_id) VALUES (?)", (telegram_id,))
+        conn.commit()
     conn.close()
 
 

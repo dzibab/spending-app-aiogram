@@ -1,0 +1,1 @@
+DB = "spending.sqlite3"
