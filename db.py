@@ -4,44 +4,44 @@ from constants import DB
 
 
 class DBConnection:
-    def __init__(self, db_path=DB):
-        self.db_path = db_path
-        self.conn = None
-        self.cursor = None
+    def __init__(self, db_path: str = DB):
+        self.db_path: str = db_path
+        self.conn: sqlite3.Connection | None = None
+        self.cursor: sqlite3.Cursor | None = None
 
-    def __enter__(self):
+    def __enter__(self) -> "DBConnection":
         self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         if self.conn:
             if exc_type is None:
                 self.conn.commit()
             self.conn.close()
 
-    def _fetch(self, mode):
+    def _fetchone(self) -> tuple | None:
         if self.cursor is None:
             raise RuntimeError("Database cursor is not initialized.")
-        if mode == "one":
-            return self.cursor.fetchone()
-        elif mode == "all":
-            return self.cursor.fetchall()
-        else:
-            raise ValueError("Invalid fetch mode.")
+        return self.cursor.fetchone()
 
-    def execute(self, *args, **kwargs):
+    def _fetchall(self) -> list[tuple]:
+        if self.cursor is None:
+            raise RuntimeError("Database cursor is not initialized.")
+        return self.cursor.fetchall()
+
+    def execute(self, *args, **kwargs) -> sqlite3.Cursor:
         if self.cursor is None:
             raise RuntimeError("Database cursor is not initialized.")
         return self.cursor.execute(*args, **kwargs)
 
-    def fetchone(self):
-        return self._fetch("one")
+    def fetchone(self) -> tuple | None:
+        return self._fetchone()
 
-    def fetchall(self):
-        return self._fetch("all")
+    def fetchall(self) -> list[tuple]:
+        return self._fetchall()
 
-    def commit(self):
+    def commit(self) -> None:
         if self.conn is None:
             raise RuntimeError("Database connection is not initialized.")
         self.conn.commit()
