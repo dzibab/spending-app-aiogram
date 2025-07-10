@@ -1,6 +1,8 @@
+import datetime
 import sqlite3
 
 from .constants import DB
+from .utils import get_exchange_rate, aggregate_expenses_by_category
 
 
 class DBConnection:
@@ -106,5 +108,83 @@ def add_expense(
         )
 
 
-if __name__ == "__main__":
-    init_db()
+def get_expenses_for_period(telegram_id: int, period: str) -> list[dict]:
+    """
+    Fetch expenses for a user for a given period ('week', 'month', 'year').
+    Returns a list of dicts: {amount, category, currency, created_at}
+    """
+    if period not in ("week", "month", "year"):
+        raise ValueError("Invalid period. Use 'week', 'month', or 'year'.")
+
+    now = datetime.datetime.now()
+    match period:
+        case "week":
+            since = now - datetime.timedelta(days=7)
+        case "month":
+            since = now - datetime.timedelta(days=30)
+        case "year":
+            since = now - datetime.timedelta(days=365)
+
+    with DBConnection() as db:
+        db.execute(
+            "SELECT u.id, u.currency FROM users u WHERE u.telegram_id = ?",
+            (telegram_id,),
+        )
+        user_row = db.fetchone()
+        if user_row is None:
+            raise ValueError("User not found")
+        user_id, user_currency = user_row
+
+        db.execute(
+            """
+            SELECT amount, category, currency, created_at
+            FROM expenses
+            WHERE user_id = ? AND created_at >= ?
+            """,
+            (user_id, since.strftime("%Y-%m-%d %H:%M:%S")),
+        )
+        rows = db.fetchall()
+        expenses = [
+            {
+                "amount": row[0],
+                "category": row[1],
+                "currency": row[2],
+                "created_at": row[3],
+            }
+            for row in rows
+        ]
+        return expenses
+
+    category_totals = {}
+    total = 0.0
+    for exp in expenses:
+        amount = exp["amount"]
+        from_cur = exp["currency"]
+        cat = exp["category"]
+        rate = get_exchange_rate(from_cur, user_currency)
+        amount_converted = amount * rate
+        category_totals[cat] = category_totals.get(cat, 0.0) + amount_converted
+        total += amount_converted
+    return category_totals, total
+
+
+def get_user_stats_for_period(telegram_id: int, period: str) -> tuple[str, dict, float]:
+    """
+    Returns (user_currency, category_totals, total) for the user's expenses in the given period.
+    Raises ValueError if user or currency not set.
+    """
+
+    with DBConnection() as db:
+        db.execute(
+            "SELECT currency FROM users WHERE telegram_id = ?",
+            (telegram_id,),
+        )
+        row = db.fetchone()
+        if not row or not row[0]:
+            raise ValueError("Currency not set for user")
+        user_currency = row[0]
+    expenses = get_expenses_for_period(telegram_id, period)
+    if not expenses:
+        return user_currency, {}, 0.0
+    category_totals, total = aggregate_expenses_by_category(expenses, user_currency)
+    return user_currency, category_totals, total

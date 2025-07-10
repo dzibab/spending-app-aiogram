@@ -10,7 +10,12 @@ from aiogram.types import (
     ReplyKeyboardRemove,
 )
 
-from .db import add_user, set_currency, add_expense
+from .db import (
+    add_user,
+    set_currency,
+    add_expense,
+    get_user_stats_for_period,
+)
 from .constants import DEFAULT_CATEGORIES
 from .fsm import AddExpenseStates
 
@@ -23,6 +28,7 @@ def register_handlers(dp: Dispatcher) -> None:
     dp.message.register(add_amount, AddExpenseStates.amount)
     dp.message.register(add_category, AddExpenseStates.category)
     dp.message.register(add_description, AddExpenseStates.description)
+    dp.message.register(cmd_stats, Command("stats"))
     logging.info("Handlers registered.")
 
 
@@ -133,3 +139,31 @@ async def add_description(message: Message, state: FSMContext) -> None:
         reply_markup=ReplyKeyboardRemove(),
     )
     await state.clear()
+
+
+async def cmd_stats(message: Message) -> None:
+    if not message.from_user or not message.text:
+        await message.answer("/stats called without user or text.")
+        return
+    args = message.text.split()
+    if len(args) != 2 or args[1] not in ("week", "month", "year"):
+        await message.answer("Usage: /stats <week|month|year>")
+        return
+    period = args[1]
+    try:
+        user_currency, category_totals, total = get_user_stats_for_period(
+            message.from_user.id, period
+        )
+        if not category_totals:
+            await message.answer(f"No expenses found for the past {period}.")
+            return
+        lines = [f"📊 <b>Stats for past {period}</b> (in {user_currency}):\n"]
+        for cat, amt in sorted(category_totals.items(), key=lambda x: -x[1]):
+            lines.append(f"<b>{cat}</b>: {amt:.2f}")
+        lines.append(f"\n<b>Total:</b> {total:.2f}")
+        await message.answer("\n".join(lines), parse_mode="HTML")
+    except ValueError as e:
+        await message.answer(str(e))
+    except Exception as e:
+        logging.error(f"/stats error: {e}")
+        await message.answer("❌ Could not fetch stats. Please try again later.")
