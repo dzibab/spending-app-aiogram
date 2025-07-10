@@ -1,3 +1,5 @@
+import logging
+
 from aiogram import Dispatcher
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -21,11 +23,13 @@ def register_handlers(dp: Dispatcher) -> None:
     dp.message.register(add_amount, AddExpenseStates.amount)
     dp.message.register(add_category, AddExpenseStates.category)
     dp.message.register(add_description, AddExpenseStates.description)
+    logging.info("Handlers registered.")
 
 
 async def cmd_start(message: Message) -> None:
     if message.from_user is not None:
         add_user(message.from_user.id)
+        logging.info(f"User {message.from_user.id} started the bot.")
     await message.answer(
         "👋 Welcome to Spending Tracker Bot!\n"
         "Set your default currency with /setcurrency (e.g. /setcurrency USD).\n"
@@ -35,22 +39,27 @@ async def cmd_start(message: Message) -> None:
 
 async def cmd_setcurrency(message: Message) -> None:
     if not message.from_user or not message.text:
+        logging.warning("/setcurrency called without user or text.")
         return
     args = message.text.split()
     if len(args) != 2:
         await message.answer("Usage: /setcurrency USD")
+        logging.warning("/setcurrency called with wrong number of arguments.")
         return
     currency = args[1].upper()
     if not (len(currency) == 3 and currency.isalpha()):
         await message.answer(
             "Please provide a valid 3-letter currency code (e.g. USD, EUR)."
         )
+        logging.warning(f"Invalid currency code: {currency}")
         return
     set_currency(message.from_user.id, currency)
+    logging.info(f"User {message.from_user.id} set currency to {currency}.")
     await message.answer(f"✅ Default currency set to {currency}.")
 
 
 async def cmd_add(message: Message, state: FSMContext) -> None:
+    logging.info(f"User {message.from_user.id if message.from_user else 'unknown'} started adding an expense.")
     await message.answer("Enter the amount:", reply_markup=ReplyKeyboardRemove())
     await state.set_state(AddExpenseStates.amount)
 
@@ -58,12 +67,15 @@ async def cmd_add(message: Message, state: FSMContext) -> None:
 async def add_amount(message: Message, state: FSMContext) -> None:
     if not message.text or not message.text.strip():
         await message.answer("Amount cannot be empty. Please enter the amount:")
+        logging.warning("Amount not provided or empty.")
         return
     try:
         amount = float(message.text)
         await state.update_data(amount=amount)
+        logging.info(f"Amount entered: {amount}")
     except ValueError:
         await message.answer("Amount must be a number. Please enter the amount:")
+        logging.warning(f"Invalid amount entered: {message.text}")
         return
     # Show categories as keyboard
     keyboard = ReplyKeyboardMarkup(
@@ -79,8 +91,10 @@ async def add_category(message: Message, state: FSMContext) -> None:
     category = message.text
     if category not in DEFAULT_CATEGORIES:
         await message.answer("Please choose a category from the list.")
+        logging.warning(f"Invalid category selected: {category}")
         return
     await state.update_data(category=category)
+    logging.info(f"Category selected: {category}")
     await message.answer(
         "Enter a description (or type '-' to skip):", reply_markup=ReplyKeyboardRemove()
     )
@@ -95,16 +109,20 @@ async def add_description(message: Message, state: FSMContext) -> None:
     if not (amount and category):
         await message.answer("Something went wrong. Please try /add again.")
         await state.clear()
+        logging.error("Missing amount or category in FSM state data.")
         return
     if not message.from_user or not message.from_user.id:
         await message.answer("User information is missing. Please try /add again.")
         await state.clear()
+        logging.error("User information missing in add_description handler.")
         return
     try:
         add_expense(message.from_user.id, amount, category, description)
+        logging.info(f"Expense added for user {message.from_user.id}: {amount} {category} {description}")
     except ValueError as e:
         await message.answer(f"❌ Could not add expense: {e}")
         await state.clear()
+        logging.error(f"Failed to add expense: {e}")
         return
     await message.answer(
         f"✅ Added expense: {amount} {category} {description}",
