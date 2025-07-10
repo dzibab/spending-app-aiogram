@@ -59,7 +59,9 @@ async def cmd_setcurrency(message: Message) -> None:
 
 
 async def cmd_add(message: Message, state: FSMContext) -> None:
-    logging.info(f"User {message.from_user.id if message.from_user else 'unknown'} started adding an expense.")
+    logging.info(
+        f"User {message.from_user.id if message.from_user else 'unknown'} started adding an expense."
+    )
     await message.answer("Enter the amount:", reply_markup=ReplyKeyboardRemove())
     await state.set_state(AddExpenseStates.amount)
 
@@ -118,7 +120,9 @@ async def add_description(message: Message, state: FSMContext) -> None:
         return
     try:
         add_expense(message.from_user.id, amount, category, description)
-        logging.info(f"Expense added for user {message.from_user.id}: {amount} {category} {description}")
+        logging.info(
+            f"Expense added for user {message.from_user.id}: {amount} {category} {description}"
+        )
     except ValueError as e:
         await message.answer(f"❌ Could not add expense: {e}")
         await state.clear()
