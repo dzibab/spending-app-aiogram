@@ -18,6 +18,7 @@ from .db import (
 )
 from .constants import DEFAULT_CATEGORIES
 from .fsm import AddExpenseStates
+from .utils import format_stats_message
 
 
 def register_handlers(dp: Dispatcher) -> None:
@@ -85,7 +86,6 @@ async def add_amount(message: Message, state: FSMContext) -> None:
         await message.answer("Amount must be a number. Please enter the amount:")
         logging.warning(f"Invalid amount entered: {message.text}")
         return
-    # Show categories as keyboard
     keyboard = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text=cat)] for cat in DEFAULT_CATEGORIES],
         resize_keyboard=True,
@@ -147,21 +147,19 @@ async def cmd_stats(message: Message) -> None:
         return
     args = message.text.split()
     if len(args) != 2 or args[1] not in ("week", "month", "year"):
-        await message.answer("Usage: /stats <week|month|year>")
+        await message.answer(
+            "Usage: /stats <week|month|year>\n"
+            "week — last 7 days, month — from 1st day of current month, year — from 1st January of current year."
+        )
         return
     period = args[1]
     try:
+        user_id = message.from_user.id
         user_currency, category_totals, total = get_user_stats_for_period(
-            message.from_user.id, period
+            user_id, period
         )
-        if not category_totals:
-            await message.answer(f"No expenses found for the past {period}.")
-            return
-        lines = [f"📊 <b>Stats for past {period}</b> (in {user_currency}):\n"]
-        for cat, amt in sorted(category_totals.items(), key=lambda x: -x[1]):
-            lines.append(f"<b>{cat}</b>: {amt:.2f}")
-        lines.append(f"\n<b>Total:</b> {total:.2f}")
-        await message.answer("\n".join(lines), parse_mode="HTML")
+        msg = format_stats_message(period, category_totals, total, user_currency)
+        await message.answer(msg, parse_mode="HTML")
     except ValueError as e:
         await message.answer(str(e))
     except Exception as e:

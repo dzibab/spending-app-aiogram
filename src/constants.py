@@ -1,4 +1,3 @@
-
 DEFAULT_CATEGORIES = [
     "Groceries",
     "Transport",

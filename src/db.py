@@ -119,9 +119,11 @@ def get_expenses_for_period(telegram_id: int, period: str) -> list[dict]:
         case "week":
             since = now - datetime.timedelta(days=7)
         case "month":
-            since = now - datetime.timedelta(days=30)
+            since = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         case "year":
-            since = now - datetime.timedelta(days=365)
+            since = now.replace(
+                month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+            )
 
     with DBConnection() as db:
         db.execute(

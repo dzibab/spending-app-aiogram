@@ -87,9 +87,9 @@ def format_stats_message(
     Format the stats for Telegram message output.
     """
     period_map = {
-        "week": "Past Week",
-        "month": "Past Month",
-        "year": "Past Year",
+        "week": "Last 7 days",
+        "month": "Current Month",
+        "year": "Current Year",
     }
     period_str = period_map.get(period, period.capitalize())
     lines = [f"\U0001f4ca <b>Stats for {period_str}</b>", ""]
