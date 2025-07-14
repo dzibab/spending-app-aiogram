@@ -38,9 +38,13 @@ async def cmd_start(message: Message) -> None:
         add_user(message.from_user.id)
         logging.info(f"User {message.from_user.id} started the bot.")
     await message.answer(
-        "👋 Welcome to Spending Tracker Bot!\n"
-        "Set your default currency with /setcurrency (e.g. /setcurrency USD).\n"
-        "Add expenses with /add."
+        "� <b>Welcome to Spending Tracker Bot!</b>\n\n"
+        "Easily track your daily expenses, analyze your spending habits, and stay on top of your budget.\n\n"
+        "✨ <b>What you can do:</b>\n"
+        "• Add new expenses with /add\n"
+        "• Get detailed stats for week, month, or year with /stats <week|month|year>\n"
+        "• Set your preferred currency with /setcurrency (e.g. /setcurrency USD)\n\n"
+        "Start by setting your currency and adding your first expense!"
     )
 
 
