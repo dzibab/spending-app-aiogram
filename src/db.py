@@ -1,5 +1,7 @@
-import datetime
 import os
+import io
+import csv
+import datetime
 
 import psycopg
 
@@ -176,3 +178,41 @@ def get_user_stats_for_period(telegram_id: int, period: str) -> tuple[str, dict,
         return user_currency, {}, 0.0
     category_totals, total = aggregate_expenses_by_category(expenses, user_currency)
     return user_currency, category_totals, total
+
+
+def get_user_id(telegram_id: int) -> int | None:
+    """Return the user id for a given telegram_id, or None if not found."""
+    with DBConnection() as db:
+        db.execute("SELECT id FROM users WHERE telegram_id = %s", (telegram_id,))
+        row = db.fetchone()
+        if row is None:
+            return None
+        return row[0]
+
+
+def export_user_data(telegram_id: int) -> tuple[io.BytesIO | None, str | None]:
+    """Export all expenses for the user as a CSV file in memory."""
+    user_id = get_user_id(telegram_id)
+    if user_id is None:
+        return None, None
+    with DBConnection() as db:
+        db.execute(
+            """
+            SELECT amount, category, currency, description, created_at
+            FROM expenses
+            WHERE user_id = %s
+            ORDER BY created_at ASC
+            """,
+            (user_id,),
+        )
+        rows = db.fetchall()
+    if not rows:
+        return None, None
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["amount", "category", "currency", "description", "created_at"])
+    for row in rows:
+        writer.writerow(row)
+    output.seek(0)
+    filename = f"spending_export_{telegram_id}.csv"
+    return io.BytesIO(output.getvalue().encode()), filename

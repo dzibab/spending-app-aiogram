@@ -8,6 +8,7 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardRemove,
+    BufferedInputFile,
 )
 
 from .db import (
@@ -15,6 +16,7 @@ from .db import (
     set_currency,
     add_expense,
     get_user_stats_for_period,
+    export_user_data,
 )
 from .constants import DEFAULT_CATEGORIES
 from .fsm import AddExpenseStates
@@ -30,6 +32,7 @@ def register_handlers(dp: Dispatcher) -> None:
     dp.message.register(add_category, AddExpenseStates.category)
     dp.message.register(add_description, AddExpenseStates.description)
     dp.message.register(cmd_stats, Command("stats"))
+    dp.message.register(cmd_export, Command("export"))
     logging.info("Handlers registered.")
 
 
@@ -169,3 +172,19 @@ async def cmd_stats(message: Message) -> None:
     except Exception as e:
         logging.error(f"/stats error: {e}")
         await message.answer("❌ Could not fetch stats. Please try again later.")
+
+
+async def cmd_export(message: Message) -> None:
+    """Export all data for the current user as a file."""
+    if not message.from_user:
+        return
+    user_id = message.from_user.id
+
+    file_bytes, filename = export_user_data(user_id)
+    if not file_bytes:
+        await message.answer("No data found to export.")
+        return
+    file_bytes.seek(0)
+    safe_filename = filename or f"spending_export_{user_id}.csv"
+    file = BufferedInputFile(file_bytes.read(), safe_filename)
+    await message.answer_document(file, caption="Your data export.")
