@@ -4,6 +4,4 @@ services:
     container_name: spending-bot
     env_file:
       - .env
-    volumes:
-      - ./spending.sqlite3:/app/spending.sqlite3
     restart: unless-stopped
