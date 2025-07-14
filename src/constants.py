@@ -1,4 +1,3 @@
-DB = "spending.sqlite3"
 
 DEFAULT_CATEGORIES = [
     "Groceries",

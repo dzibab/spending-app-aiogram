@@ -1,49 +1,46 @@
 import datetime
-import sqlite3
+import os
 
-from .constants import DB
-from .utils import get_exchange_rate, aggregate_expenses_by_category
+import psycopg
+
+from .utils import aggregate_expenses_by_category
 
 
 class DBConnection:
-    def __init__(self, db_path: str = DB):
-        self.db_path: str = db_path
-        self.conn: sqlite3.Connection | None = None
-        self.cursor: sqlite3.Cursor | None = None
+    def __init__(self, dsn: str | None = None):
+        self.dsn = dsn or os.getenv("POSTGRES_DSN")
+        self.conn = None
+        self.cursor = None
 
-    def __enter__(self) -> "DBConnection":
-        self.conn = sqlite3.connect(self.db_path)
+    def __enter__(self):
+        if self.dsn is None:
+            raise ValueError("Database DSN must not be None")
+        self.conn = psycopg.connect(self.dsn, autocommit=False)
         self.cursor = self.conn.cursor()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type, exc_val, exc_tb):
         if self.conn:
             if exc_type is None:
                 self.conn.commit()
             self.conn.close()
 
-    def _fetchone(self) -> tuple | None:
-        if self.cursor is None:
-            raise RuntimeError("Database cursor is not initialized.")
-        return self.cursor.fetchone()
-
-    def _fetchall(self) -> list[tuple]:
-        if self.cursor is None:
-            raise RuntimeError("Database cursor is not initialized.")
-        return self.cursor.fetchall()
-
-    def execute(self, *args, **kwargs) -> sqlite3.Cursor:
+    def execute(self, *args, **kwargs):
         if self.cursor is None:
             raise RuntimeError("Database cursor is not initialized.")
         return self.cursor.execute(*args, **kwargs)
 
-    def fetchone(self) -> tuple | None:
-        return self._fetchone()
+    def fetchone(self):
+        if self.cursor is None:
+            raise RuntimeError("Database cursor is not initialized.")
+        return self.cursor.fetchone()
 
-    def fetchall(self) -> list[tuple]:
-        return self._fetchall()
+    def fetchall(self):
+        if self.cursor is None:
+            raise RuntimeError("Database cursor is not initialized.")
+        return self.cursor.fetchall()
 
-    def commit(self) -> None:
+    def commit(self):
         if self.conn is None:
             raise RuntimeError("Database connection is not initialized.")
         self.conn.commit()
@@ -53,17 +50,17 @@ def init_db():
     with DBConnection() as db:
         db.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            telegram_id INTEGER UNIQUE NOT NULL,
+            id SERIAL PRIMARY KEY,
+            telegram_id BIGINT UNIQUE NOT NULL,
             currency TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """)
         db.execute("""
         CREATE TABLE IF NOT EXISTS expenses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
-            amount REAL NOT NULL,
+            amount DOUBLE PRECISION NOT NULL,
             category TEXT NOT NULL,
             description TEXT,
             currency TEXT,
@@ -75,15 +72,15 @@ def init_db():
 
 def add_user(telegram_id: int) -> None:
     with DBConnection() as db:
-        db.execute("SELECT id FROM users WHERE telegram_id = ?", (telegram_id,))
+        db.execute("SELECT id FROM users WHERE telegram_id = %s", (telegram_id,))
         if db.fetchone() is None:
-            db.execute("INSERT INTO users (telegram_id) VALUES (?)", (telegram_id,))
+            db.execute("INSERT INTO users (telegram_id) VALUES (%s)", (telegram_id,))
 
 
 def set_currency(telegram_id: int, currency: str) -> None:
     with DBConnection() as db:
         db.execute(
-            "UPDATE users SET currency = ? WHERE telegram_id = ?",
+            "UPDATE users SET currency = %s WHERE telegram_id = %s",
             (currency, telegram_id),
         )
 
@@ -94,16 +91,16 @@ def add_expense(
     with DBConnection() as db:
         # Get user_id and currency from telegram_id
         db.execute(
-            "SELECT id, currency FROM users WHERE telegram_id = ?", (telegram_id,)
+            "SELECT id, currency FROM users WHERE telegram_id = %s", (telegram_id,)
         )
         row = db.fetchone()
         if row is None:
             raise ValueError("User not found")
-        user_id, currency = row
+        user_id, currency = row[0], row[1]
         if not currency:
             raise ValueError("Currency is not set for this user")
         db.execute(
-            "INSERT INTO expenses (user_id, amount, category, description, currency) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO expenses (user_id, amount, category, description, currency) VALUES (%s, %s, %s, %s, %s)",
             (user_id, amount, category, description, currency),
         )
 
@@ -117,6 +114,7 @@ def get_expenses_for_period(telegram_id: int, period: str) -> list[dict]:
         raise ValueError("Invalid period. Use 'week', 'month', or 'year'.")
 
     now = datetime.datetime.now()
+
     match period:
         case "week":
             since = now - datetime.timedelta(days=7)
@@ -127,19 +125,19 @@ def get_expenses_for_period(telegram_id: int, period: str) -> list[dict]:
 
     with DBConnection() as db:
         db.execute(
-            "SELECT u.id, u.currency FROM users u WHERE u.telegram_id = ?",
+            "SELECT u.id, u.currency FROM users u WHERE u.telegram_id = %s",
             (telegram_id,),
         )
         user_row = db.fetchone()
         if user_row is None:
             raise ValueError("User not found")
-        user_id, user_currency = user_row
+        user_id = user_row[0]
 
         db.execute(
             """
             SELECT amount, category, currency, created_at
             FROM expenses
-            WHERE user_id = ? AND created_at >= ?
+            WHERE user_id = %s AND created_at >= %s
             """,
             (user_id, since.strftime("%Y-%m-%d %H:%M:%S")),
         )
@@ -155,18 +153,6 @@ def get_expenses_for_period(telegram_id: int, period: str) -> list[dict]:
         ]
         return expenses
 
-    category_totals = {}
-    total = 0.0
-    for exp in expenses:
-        amount = exp["amount"]
-        from_cur = exp["currency"]
-        cat = exp["category"]
-        rate = get_exchange_rate(from_cur, user_currency)
-        amount_converted = amount * rate
-        category_totals[cat] = category_totals.get(cat, 0.0) + amount_converted
-        total += amount_converted
-    return category_totals, total
-
 
 def get_user_stats_for_period(telegram_id: int, period: str) -> tuple[str, dict, float]:
     """
@@ -176,7 +162,7 @@ def get_user_stats_for_period(telegram_id: int, period: str) -> tuple[str, dict,
 
     with DBConnection() as db:
         db.execute(
-            "SELECT currency FROM users WHERE telegram_id = ?",
+            "SELECT currency FROM users WHERE telegram_id = %s",
             (telegram_id,),
         )
         row = db.fetchone()

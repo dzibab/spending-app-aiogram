@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "aiogram>=3.21.0",
+    "psycopg[binary]>=3.2.9",
     "python-dotenv>=1.1.1",
     "requests>=2.32.4",
     "uvloop>=0.21.0",

@@ -209,4 +209,6 @@ __marimo__/
 # DB
 *.db
 *.sqlite
-*.sqlite3
+
+# DB (PostgreSQL)
+# *.psql
