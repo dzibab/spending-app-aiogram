@@ -102,3 +102,32 @@ def format_stats_message(
         lines.append("")
         lines.append(f"<b>Total:</b> <b>{total_sum:.2f} {user_currency}</b>")
     return "\n".join(lines)
+
+
+def format_expense_list(expenses: list[dict]) -> str:
+    """
+    Format a list of expenses for display in Telegram.
+    """
+    if not expenses:
+        return "No recent expenses found."
+
+    lines = ["📋 <b>Your Recent Expenses:</b>\n"]
+    for i, expense in enumerate(expenses, 1):
+        amount = expense["amount"]
+        category = expense["category"]
+        currency = expense["currency"]
+        description = expense.get("description", "")
+        created_at = expense["created_at"]
+
+        # Format date
+        if hasattr(created_at, "strftime"):
+            date_str = created_at.strftime("%m/%d %H:%M")
+        else:
+            date_str = str(created_at)[:16]
+
+        desc_text = f" - {description}" if description else ""
+        lines.append(f"{i}. <b>{amount} {currency}</b> • {category}{desc_text}")
+        lines.append(f"   <i>{date_str}</i>\n")
+
+    lines.append("Reply with the number (1-10) of the expense you want to remove.")
+    return "\n".join(lines)

@@ -239,3 +239,64 @@ def export_user_data(telegram_id: int) -> tuple[io.BytesIO | None, str | None]:
     output.seek(0)
     filename = f"spending_export_{telegram_id}.csv"
     return io.BytesIO(output.getvalue().encode()), filename
+
+
+def get_recent_expenses(telegram_id: int, limit: int = 10) -> list[dict]:
+    """
+    Get the most recent expenses for a user.
+    Returns a list of dicts: {id, amount, category, currency, description, created_at}
+    Raises ValueError if user not found.
+    """
+    user_id = get_user_id(telegram_id)
+    if user_id is None:
+        raise ValueError("User not found")
+
+    with DBConnection() as db:
+        db.execute(
+            """
+            SELECT id, amount, category, currency, description, created_at
+            FROM expenses
+            WHERE user_id = %s
+            ORDER BY created_at DESC
+            LIMIT %s
+            """,
+            (user_id, limit),
+        )
+        rows = db.fetchall()
+        return [
+            {
+                "id": row[0],
+                "amount": row[1],
+                "category": row[2],
+                "currency": row[3],
+                "description": row[4],
+                "created_at": row[5],
+            }
+            for row in rows
+        ]
+
+
+def delete_expense(telegram_id: int, expense_id: int) -> bool:
+    """
+    Delete a specific expense if it belongs to the user.
+    Returns True if deleted, False if not found or doesn't belong to user.
+    """
+    user_id = get_user_id(telegram_id)
+    if user_id is None:
+        return False
+
+    with DBConnection() as db:
+        # Check if expense exists and belongs to user
+        db.execute(
+            "SELECT id FROM expenses WHERE id = %s AND user_id = %s",
+            (expense_id, user_id),
+        )
+        if db.fetchone() is None:
+            return False
+
+        # Delete the expense
+        db.execute(
+            "DELETE FROM expenses WHERE id = %s AND user_id = %s",
+            (expense_id, user_id),
+        )
+        return True
